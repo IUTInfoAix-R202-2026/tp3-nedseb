@@ -1,4 +1,3 @@
-[![Open in Codespaces](https://classroom.github.com/assets/launch-codespace-2972f46106e565e64193e422d61a12cf1da4916b45550586e14ef0a7c637dd04.svg)](https://classroom.github.com/open-in-codespaces?assignment_repo_id=23937793)
 # <img src=".github/assets/logo.png" alt="class logo" class="logo" width="120"/> R2.02 - Développement d'applications avec IHM
 
 ### IUT d'Aix-Marseille - Département Informatique Aix-en-Provence
@@ -81,12 +80,12 @@ La mise en place se fait en deux étapes : accepter le devoir sur GitHub Classro
 
 1. Cliquez sur le lien suivant :
 
-   👉 **https://classroom.github.com/a/furMyUIZ**
+   👉 **https://classroom.github.com/a/m_6Oq_Uc**
 
 2. Si c'est votre première utilisation de GitHub Classroom, autorisez l'accès à votre compte GitHub.
 3. Sélectionnez votre nom dans la liste des étudiants (si elle apparaît) pour associer votre compte GitHub à votre identité dans le cours.
 4. Cliquez sur **"Accept this assignment"**.
-5. Attendez quelques secondes - GitHub crée automatiquement un dépôt à votre nom : `IUTInfoAix-R202-2026/tp3-votreLogin`.
+5. Attendez quelques secondes - GitHub crée automatiquement un dépôt **public** à votre nom : `IUTInfoAix-R202-2026/tp3-votreLogin`. La visibilité publique vous permet de bénéficier de minutes GitHub Actions illimitées pour l'autograding ; en contrepartie, votre code est visible de tous.
 6. Cliquez sur le lien du dépôt créé pour y accéder.
 
 ### Étape 2 - Ouvrir le projet dans GitHub Codespaces
