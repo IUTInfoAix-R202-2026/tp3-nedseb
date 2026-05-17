@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.layout.VBox?>
+
+<!--
+  Vue de la liste de cartes de sites.
+
+  Au démarrage, le VBox conteneurCartes est vide. Chaque clic sur le bouton
+  « + Nouveau site » de l'en-tête vient ajouter une carte en tête du VBox via
+  ListeSitesController.ajouterSiteDemo() ; l'en-tête met à jour son compteur
+  en parallèle.
+-->
+
+<ScrollPane xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="fr.univ_amu.iut.exercice6.ListeSitesController"
+            fitToWidth="true"
+            style="-fx-background-color: #fafbfc; -fx-background: #fafbfc;">
+
+  <content>
+    <VBox fx:id="conteneurCartes" spacing="10">
+      <padding>
+        <Insets top="20" right="20" bottom="20" left="20"/>
+      </padding>
+    </VBox>
+  </content>
+</ScrollPane>

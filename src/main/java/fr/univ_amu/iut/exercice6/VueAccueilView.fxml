@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.BorderPane?>
+
+<!--
+  Vue parente de la maquette M-Sites assemblée.
+
+  Le BorderPane intègre :
+    - top    = vue en-tête (titre + compteur + bouton "+ Nouveau site")
+    - center = vue liste de cartes (initialement vide)
+
+  fx:include charge chaque sous-vue avec son propre fx:controller. Le contrôleur
+  parent récupère automatiquement les sous-contrôleurs sous les noms
+  enTeteController et listeSitesController (suffixe Controller obligatoire).
+-->
+
+<BorderPane xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="fr.univ_amu.iut.exercice6.VueAccueilController"
+            prefWidth="820.0" prefHeight="480.0">
+
+  <top>
+    <fx:include source="EnTeteView.fxml" fx:id="enTete"/>
+  </top>
+
+  <center>
+    <fx:include source="ListeSitesView.fxml" fx:id="listeSites"/>
+  </center>
+</BorderPane>

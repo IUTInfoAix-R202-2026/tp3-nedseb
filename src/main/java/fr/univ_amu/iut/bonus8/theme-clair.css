@@ -1,0 +1,35 @@
+/* Thème clair (par défaut). */
+
+.fond {
+  -fx-background-color: #fafbfc;
+}
+
+.titre {
+  -fx-font-size: 22px;
+  -fx-font-weight: bold;
+  -fx-text-fill: #2c3e50;
+}
+
+.sous-titre {
+  -fx-font-size: 13px;
+  -fx-text-fill: #6a737d;
+  -fx-wrap-text: true;
+}
+
+.card {
+  -fx-background-color: white;
+  -fx-border-color: #d0d7de;
+  -fx-border-width: 1;
+  -fx-background-radius: 6;
+  -fx-border-radius: 6;
+  -fx-padding: 12;
+}
+
+.titre-card {
+  -fx-font-weight: bold;
+  -fx-text-fill: #2c3e50;
+}
+
+.texte-card {
+  -fx-text-fill: #2c3e50;
+}

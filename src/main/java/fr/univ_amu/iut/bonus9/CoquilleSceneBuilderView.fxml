@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.VBox?>
+
+<!--
+  Squelette FXML à ouvrir et compléter avec SceneBuilder.
+
+  Pour démarrer :
+    - top    : ajoutez un MenuBar (Fichier > Quitter, Affichage > Mes sites, ...)
+    - center : remplissez la VBox centrale (titre + invitations)
+    - bottom : ajoutez un HBox de pied de fenêtre (rappel chemin BDD + statut)
+
+  Pensez à associer ce FXML au CoquilleSceneBuilderController via le panneau
+  Controller de SceneBuilder. Puis ajoutez les fx:id et les méthodes de gestion
+  d'événement nécessaires.
+-->
+
+<BorderPane xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="fr.univ_amu.iut.bonus9.CoquilleSceneBuilderController"
+            prefWidth="720.0" prefHeight="480.0">
+
+  <center>
+    <VBox alignment="CENTER" spacing="14">
+      <padding>
+        <Insets top="40" right="40" bottom="40" left="40"/>
+      </padding>
+      <Label text="Bonus 9 - À construire avec SceneBuilder"
+             style="-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #2c3e50;"/>
+      <Label text="Ouvrez ce fichier dans SceneBuilder et reproduisez la coquille de l'exercice 4."
+             style="-fx-text-fill: #6a737d;"/>
+    </VBox>
+  </center>
+
+</BorderPane>

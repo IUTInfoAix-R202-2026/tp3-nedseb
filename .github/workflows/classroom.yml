@@ -1,0 +1,776 @@
+# GitHub Classroom autograding workflow.
+# Le bloc autograding (steps Classroom + reporter) est régénéré par
+# update-autograding.sh en fonction des sous-paquets d'exercices
+# détectés. Ne pas éditer à la main le bloc entre marqueurs.
+name: GitHub Classroom Workflow
+
+# Le calcul de note ne tourne que sur main : un exercice n'est livré qu'au
+# moment du merge. Les pushes sur les feature branches (exerciceN) restent
+# couverts par maven.yml (compilation + tests), qui suffit pour le feedback
+# pédagogique. workflow_dispatch reste dispo pour un regrade manuel.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  build:
+    name: Autograding
+    if: github.repository != 'IUTInfoAix-R202/template-tp-javafx'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # Historique complet pour que `git diff $BEFORE..HEAD` fonctionne
+          # dans le step de scope (sans ça, on tomberait sur ALL à chaque push).
+          fetch-depth: 0
+
+      - name: Set up JDK 25 with JavaFX
+        uses: actions/setup-java@v5
+        with:
+          java-version: '25'
+          distribution: 'zulu'
+          java-package: 'jdk+fx'
+          cache: maven
+
+      #@@@AUTOGRADING-BEGIN@@@ (généré par update-autograding.sh, ne pas éditer à la main)
+      - name: Compilation
+        id: compilation
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: Compilation
+          setup-command: ""
+          command: ./mvnw -B -q compile
+          timeout: 5
+          max-score: 100
+
+      - name: Restaurer le cache des rapports Surefire
+        id: surefire_cache
+        uses: actions/cache/restore@v5
+        with:
+          path: target/surefire-reports
+          key: surefire-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            surefire-${{ github.ref_name }}-
+            surefire-main-
+
+      - name: Détecter les exercices impactés
+        id: scope
+        run: |
+          set +e
+          BEFORE="${{ github.event.before }}"
+          # Cache vide (premier run, expiration GHA) -> regrade complet sinon les
+          # XMLs absents donneraient un score 0 à tout le monde.
+          if [ ! -d target/surefire-reports ] || [ -z "$(ls -A target/surefire-reports 2>/dev/null)" ]; then
+            echo "filter=ALL" >> "$GITHUB_OUTPUT"
+            echo "reason=cache des rapports absent ou expiré" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Premier push sur la branche, ou commit base introuvable -> tout regrader
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            echo "filter=ALL" >> "$GITHUB_OUTPUT"
+            echo "reason=premier push sur la branche ou commit base introuvable" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Fichiers globaux : invalident le cache (regrade complet)
+          if git diff --name-only "$BEFORE" HEAD -- \
+              pom.xml \
+              '.github/workflows/**' \
+              '*.sh' \
+              'src/main/java/fr/univ_amu/iut/App.java' \
+              'src/main/java/fr/univ_amu/iut/module-info.java' \
+              'src/test/java/fr/univ_amu/iut/AppTest.java' \
+              | grep -q .; then
+            echo "filter=ALL" >> "$GITHUB_OUTPUT"
+            echo "reason=fichier global modifié (pom.xml / App / workflows / scripts)" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Détection fine : paquets exerciceN / bonusN modifiés
+          pkgs=$(git diff --name-only "$BEFORE" HEAD -- \
+              'src/main/java/fr/univ_amu/iut/exercice*/**' \
+              'src/test/java/fr/univ_amu/iut/exercice*/**' \
+              'src/main/java/fr/univ_amu/iut/bonus*/**' \
+              'src/test/java/fr/univ_amu/iut/bonus*/**' \
+              | grep -oE 'fr/univ_amu/iut/(exercice[0-9]+|bonus[0-9]+)' \
+              | sort -u | tr '/' '.')
+          if [ -z "$pkgs" ]; then
+            echo "filter=NONE" >> "$GITHUB_OUTPUT"
+            echo "reason=aucune source d'exercice modifiée (mvnw test sauté, scores restaurés du cache)" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Énumère les classes de test des paquets impactés (FQCN explicites)
+          classes=""
+          for pkg in $pkgs; do
+            pkg_dir="src/test/java/$(echo "$pkg" | tr '.' '/')"
+            while IFS= read -r f; do
+              cls=$(basename "$f" .java)
+              classes="${classes}${classes:+,}${pkg}.${cls}"
+            done < <(find "$pkg_dir" -type f -name '*.java' 2>/dev/null)
+          done
+          if [ -z "$classes" ]; then
+            echo "filter=NONE" >> "$GITHUB_OUTPUT"
+            echo "reason=paquets modifiés mais aucune classe de test trouvée" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "filter=$classes" >> "$GITHUB_OUTPUT"
+          echo "reason=paquets impactés : $(echo $pkgs | tr '\\n' ' ')" >> "$GITHUB_OUTPUT"
+
+      - name: Lancer les tests impactés
+        id: run_tests
+        if: steps.scope.outputs.filter != 'NONE'
+        continue-on-error: true
+        run: |
+          echo "Scope : ${{ steps.scope.outputs.reason }}"
+          if [ "${{ steps.scope.outputs.filter }}" = "ALL" ]; then
+            xvfb-run --auto-servernum ./mvnw -B test -DfailIfNoTests=false
+          else
+            xvfb-run --auto-servernum ./mvnw -B test -Dtest='${{ steps.scope.outputs.filter }}' -DfailIfNoTests=false
+          fi
+
+
+      - name: "exercice1 : la_fenetre_de_la_vue_fxml_est_visible"
+        id: exercice1_la_fenetre_de_la_vue_fxml_est_visible
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice1 : la_fenetre_de_la_vue_fxml_est_visible"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice1.PremiereVueFXMLTest la_fenetre_de_la_vue_fxml_est_visible
+          timeout: 5
+          max-score: 22
+
+      - name: "exercice1 : la_scene_du_stage_contient_la_racine_fxml"
+        id: exercice1_la_scene_du_stage_contient_la_racine_fxml
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice1 : la_scene_du_stage_contient_la_racine_fxml"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice1.PremiereVueFXMLTest la_scene_du_stage_contient_la_racine_fxml
+          timeout: 5
+          max-score: 22
+
+      - name: "exercice1 : la_racine_de_la_vue_fxml_est_un_borderpane"
+        id: exercice1_la_racine_de_la_vue_fxml_est_un_borderpane
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice1 : la_racine_de_la_vue_fxml_est_un_borderpane"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice1.PremiereVueFXMLTest la_racine_de_la_vue_fxml_est_un_borderpane
+          timeout: 5
+          max-score: 22
+
+      - name: "exercice1 : le_stage_porte_le_titre_attendu"
+        id: exercice1_le_stage_porte_le_titre_attendu
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice1 : le_stage_porte_le_titre_attendu"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice1.PremiereVueFXMLTest le_stage_porte_le_titre_attendu
+          timeout: 5
+          max-score: 21
+
+      - name: "exercice1 : le_label_de_bienvenue_est_affiche_dans_la_vue"
+        id: exercice1_le_label_de_bienvenue_est_affiche_dans_la_vue
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice1 : le_label_de_bienvenue_est_affiche_dans_la_vue"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice1.PremiereVueFXMLTest le_label_de_bienvenue_est_affiche_dans_la_vue
+          timeout: 5
+          max-score: 21
+
+      - name: "exercice1 : le_bouton_est_affiche_dans_la_vue"
+        id: exercice1_le_bouton_est_affiche_dans_la_vue
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice1 : le_bouton_est_affiche_dans_la_vue"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice1.PremiereVueFXMLTest le_bouton_est_affiche_dans_la_vue
+          timeout: 5
+          max-score: 21
+
+      - name: "exercice2 : le_compteur_affiche_zero_au_demarrage"
+        id: exercice2_le_compteur_affiche_zero_au_demarrage
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice2 : le_compteur_affiche_zero_au_demarrage"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice2.CompteurControllerTest le_compteur_affiche_zero_au_demarrage
+          timeout: 5
+          max-score: 19
+
+      - name: "exercice2 : le_bouton_plus_est_present_et_libelle_avec_plus"
+        id: exercice2_le_bouton_plus_est_present_et_libelle_avec_plus
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice2 : le_bouton_plus_est_present_et_libelle_avec_plus"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice2.CompteurControllerTest le_bouton_plus_est_present_et_libelle_avec_plus
+          timeout: 5
+          max-score: 19
+
+      - name: "exercice2 : cliquer_sur_le_bouton_plus_incremente_le_compteur_de_un"
+        id: exercice2_cliquer_sur_le_bouton_plus_incremente_le_compteur_de_un
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice2 : cliquer_sur_le_bouton_plus_incremente_le_compteur_de_un"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice2.CompteurControllerTest cliquer_sur_le_bouton_plus_incremente_le_compteur_de_un
+          timeout: 5
+          max-score: 19
+
+      - name: "exercice2 : trois_clics_sur_plus_portent_le_compteur_a_trois"
+        id: exercice2_trois_clics_sur_plus_portent_le_compteur_a_trois
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice2 : trois_clics_sur_plus_portent_le_compteur_a_trois"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice2.CompteurControllerTest trois_clics_sur_plus_portent_le_compteur_a_trois
+          timeout: 5
+          max-score: 18
+
+      - name: "exercice2 : cliquer_sur_le_bouton_moins_decremente_le_compteur_de_un"
+        id: exercice2_cliquer_sur_le_bouton_moins_decremente_le_compteur_de_un
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice2 : cliquer_sur_le_bouton_moins_decremente_le_compteur_de_un"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice2.CompteurControllerTest cliquer_sur_le_bouton_moins_decremente_le_compteur_de_un
+          timeout: 5
+          max-score: 18
+
+      - name: "exercice2 : deux_increments_puis_deux_decrements_ramenent_le_compteur_a_zero"
+        id: exercice2_deux_increments_puis_deux_decrements_ramenent_le_compteur_a_zero
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice2 : deux_increments_puis_deux_decrements_ramenent_le_compteur_a_zero"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice2.CompteurControllerTest deux_increments_puis_deux_decrements_ramenent_le_compteur_a_zero
+          timeout: 5
+          max-score: 18
+
+      - name: "exercice2 : cliquer_sur_reinitialiser_remet_le_compteur_a_zero"
+        id: exercice2_cliquer_sur_reinitialiser_remet_le_compteur_a_zero
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice2 : cliquer_sur_reinitialiser_remet_le_compteur_a_zero"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice2.CompteurControllerTest cliquer_sur_reinitialiser_remet_le_compteur_a_zero
+          timeout: 5
+          max-score: 18
+
+      - name: "exercice3 : les_champs_identifiant_et_mot_de_passe_sont_presents"
+        id: exercice3_les_champs_identifiant_et_mot_de_passe_sont_presents
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice3 : les_champs_identifiant_et_mot_de_passe_sont_presents"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice3.FormulaireConnexionControllerTest les_champs_identifiant_et_mot_de_passe_sont_presents
+          timeout: 5
+          max-score: 11
+
+      - name: "exercice3 : les_boutons_ok_et_annuler_sont_presents"
+        id: exercice3_les_boutons_ok_et_annuler_sont_presents
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice3 : les_boutons_ok_et_annuler_sont_presents"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice3.FormulaireConnexionControllerTest les_boutons_ok_et_annuler_sont_presents
+          timeout: 5
+          max-score: 11
+
+      - name: "exercice3 : le_mot_de_passe_est_non_editable_au_demarrage"
+        id: exercice3_le_mot_de_passe_est_non_editable_au_demarrage
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice3 : le_mot_de_passe_est_non_editable_au_demarrage"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice3.FormulaireConnexionControllerTest le_mot_de_passe_est_non_editable_au_demarrage
+          timeout: 5
+          max-score: 11
+
+      - name: "exercice3 : le_bouton_ok_est_desactive_au_demarrage"
+        id: exercice3_le_bouton_ok_est_desactive_au_demarrage
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice3 : le_bouton_ok_est_desactive_au_demarrage"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice3.FormulaireConnexionControllerTest le_bouton_ok_est_desactive_au_demarrage
+          timeout: 5
+          max-score: 11
+
+      - name: "exercice3 : le_bouton_annuler_est_desactive_si_les_deux_champs_sont_vides"
+        id: exercice3_le_bouton_annuler_est_desactive_si_les_deux_champs_sont_vides
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice3 : le_bouton_annuler_est_desactive_si_les_deux_champs_sont_vides"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice3.FormulaireConnexionControllerTest le_bouton_annuler_est_desactive_si_les_deux_champs_sont_vides
+          timeout: 5
+          max-score: 11
+
+      - name: "exercice3 : le_mot_de_passe_devient_editable_quand_l_identifiant_atteint_six_caracteres"
+        id: exercice3_le_mot_de_passe_devient_editable_quand_l_identifiant_atteint_six_caracteres
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice3 : le_mot_de_passe_devient_editable_quand_l_identifiant_atteint_six_caracteres"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice3.FormulaireConnexionControllerTest le_mot_de_passe_devient_editable_quand_l_identifiant_atteint_six_caracteres
+          timeout: 5
+          max-score: 11
+
+      - name: "exercice3 : le_bouton_ok_reste_desactive_si_le_mot_de_passe_est_trop_court"
+        id: exercice3_le_bouton_ok_reste_desactive_si_le_mot_de_passe_est_trop_court
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice3 : le_bouton_ok_reste_desactive_si_le_mot_de_passe_est_trop_court"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice3.FormulaireConnexionControllerTest le_bouton_ok_reste_desactive_si_le_mot_de_passe_est_trop_court
+          timeout: 5
+          max-score: 11
+
+      - name: "exercice3 : le_bouton_ok_reste_desactive_sans_majuscule_dans_le_mot_de_passe"
+        id: exercice3_le_bouton_ok_reste_desactive_sans_majuscule_dans_le_mot_de_passe
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice3 : le_bouton_ok_reste_desactive_sans_majuscule_dans_le_mot_de_passe"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice3.FormulaireConnexionControllerTest le_bouton_ok_reste_desactive_sans_majuscule_dans_le_mot_de_passe
+          timeout: 5
+          max-score: 11
+
+      - name: "exercice3 : le_bouton_ok_reste_desactive_sans_chiffre_dans_le_mot_de_passe"
+        id: exercice3_le_bouton_ok_reste_desactive_sans_chiffre_dans_le_mot_de_passe
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice3 : le_bouton_ok_reste_desactive_sans_chiffre_dans_le_mot_de_passe"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice3.FormulaireConnexionControllerTest le_bouton_ok_reste_desactive_sans_chiffre_dans_le_mot_de_passe
+          timeout: 5
+          max-score: 11
+
+      - name: "exercice3 : le_bouton_ok_s_active_quand_le_mot_de_passe_respecte_les_trois_regles"
+        id: exercice3_le_bouton_ok_s_active_quand_le_mot_de_passe_respecte_les_trois_regles
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice3 : le_bouton_ok_s_active_quand_le_mot_de_passe_respecte_les_trois_regles"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice3.FormulaireConnexionControllerTest le_bouton_ok_s_active_quand_le_mot_de_passe_respecte_les_trois_regles
+          timeout: 5
+          max-score: 10
+
+      - name: "exercice3 : cliquer_sur_valider_affiche_l_identifiant_et_le_mot_de_passe_masque"
+        id: exercice3_cliquer_sur_valider_affiche_l_identifiant_et_le_mot_de_passe_masque
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice3 : cliquer_sur_valider_affiche_l_identifiant_et_le_mot_de_passe_masque"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice3.FormulaireConnexionControllerTest cliquer_sur_valider_affiche_l_identifiant_et_le_mot_de_passe_masque
+          timeout: 5
+          max-score: 10
+
+      - name: "exercice3 : cliquer_sur_annuler_vide_les_deux_champs_et_le_label_message"
+        id: exercice3_cliquer_sur_annuler_vide_les_deux_champs_et_le_label_message
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice3 : cliquer_sur_annuler_vide_les_deux_champs_et_le_label_message"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice3.FormulaireConnexionControllerTest cliquer_sur_annuler_vide_les_deux_champs_et_le_label_message
+          timeout: 5
+          max-score: 10
+
+      - name: "exercice4 : le_titre_central_affiche_mes_sites_de_suivi_au_demarrage"
+        id: exercice4_le_titre_central_affiche_mes_sites_de_suivi_au_demarrage
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice4 : le_titre_central_affiche_mes_sites_de_suivi_au_demarrage"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice4.CoquilleAccueilControllerTest le_titre_central_affiche_mes_sites_de_suivi_au_demarrage
+          timeout: 5
+          max-score: 17
+
+      - name: "exercice4 : le_label_de_statut_est_present_dans_la_barre_de_statut"
+        id: exercice4_le_label_de_statut_est_present_dans_la_barre_de_statut
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice4 : le_label_de_statut_est_present_dans_la_barre_de_statut"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice4.CoquilleAccueilControllerTest le_label_de_statut_est_present_dans_la_barre_de_statut
+          timeout: 5
+          max-score: 16
+
+      - name: "exercice4 : le_menu_bar_contient_les_menus_fichier_et_affichage"
+        id: exercice4_le_menu_bar_contient_les_menus_fichier_et_affichage
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice4 : le_menu_bar_contient_les_menus_fichier_et_affichage"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice4.CoquilleAccueilControllerTest le_menu_bar_contient_les_menus_fichier_et_affichage
+          timeout: 5
+          max-score: 16
+
+      - name: "exercice4 : cliquer_sur_le_menu_mes_sites_met_le_titre_central_a_mes_sites_de_suivi"
+        id: exercice4_cliquer_sur_le_menu_mes_sites_met_le_titre_central_a_mes_sites_de_suivi
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice4 : cliquer_sur_le_menu_mes_sites_met_le_titre_central_a_mes_sites_de_suivi"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice4.CoquilleAccueilControllerTest cliquer_sur_le_menu_mes_sites_met_le_titre_central_a_mes_sites_de_suivi
+          timeout: 5
+          max-score: 16
+
+      - name: "exercice4 : cliquer_sur_le_menu_importer_met_le_titre_central_a_importer_une_nuit"
+        id: exercice4_cliquer_sur_le_menu_importer_met_le_titre_central_a_importer_une_nuit
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice4 : cliquer_sur_le_menu_importer_met_le_titre_central_a_importer_une_nuit"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice4.CoquilleAccueilControllerTest cliquer_sur_le_menu_importer_met_le_titre_central_a_importer_une_nuit
+          timeout: 5
+          max-score: 16
+
+      - name: "exercice4 : cliquer_sur_le_menu_vue_tabulaire_met_le_titre_central_a_vue_tabulaire_des_passages"
+        id: exercice4_cliquer_sur_le_menu_vue_tabulaire_met_le_titre_central_a_vue_tabulaire_des_passages
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice4 : cliquer_sur_le_menu_vue_tabulaire_met_le_titre_central_a_vue_tabulaire_des_passages"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice4.CoquilleAccueilControllerTest cliquer_sur_le_menu_vue_tabulaire_met_le_titre_central_a_vue_tabulaire_des_passages
+          timeout: 5
+          max-score: 16
+
+      - name: "exercice4 : cliquer_sur_le_menu_parametres_met_le_titre_central_a_parametres_de_l_application"
+        id: exercice4_cliquer_sur_le_menu_parametres_met_le_titre_central_a_parametres_de_l_application
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice4 : cliquer_sur_le_menu_parametres_met_le_titre_central_a_parametres_de_l_application"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice4.CoquilleAccueilControllerTest cliquer_sur_le_menu_parametres_met_le_titre_central_a_parametres_de_l_application
+          timeout: 5
+          max-score: 16
+
+      - name: "exercice4 : cliquer_sur_un_menu_met_a_jour_le_label_de_la_barre_de_statut"
+        id: exercice4_cliquer_sur_un_menu_met_a_jour_le_label_de_la_barre_de_statut
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice4 : cliquer_sur_un_menu_met_a_jour_le_label_de_la_barre_de_statut"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice4.CoquilleAccueilControllerTest cliquer_sur_un_menu_met_a_jour_le_label_de_la_barre_de_statut
+          timeout: 5
+          max-score: 16
+
+      - name: "exercice5 : le_numero_de_carre_est_affiche_dans_la_carte"
+        id: exercice5_le_numero_de_carre_est_affiche_dans_la_carte
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice5 : le_numero_de_carre_est_affiche_dans_la_carte"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice5.SiteCarteTest le_numero_de_carre_est_affiche_dans_la_carte
+          timeout: 5
+          max-score: 16
+
+      - name: "exercice5 : le_nom_convivial_est_affiche_dans_la_carte"
+        id: exercice5_le_nom_convivial_est_affiche_dans_la_carte
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice5 : le_nom_convivial_est_affiche_dans_la_carte"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice5.SiteCarteTest le_nom_convivial_est_affiche_dans_la_carte
+          timeout: 5
+          max-score: 16
+
+      - name: "exercice5 : les_compteurs_de_points_d_ecoute_et_de_passages_sont_affiches"
+        id: exercice5_les_compteurs_de_points_d_ecoute_et_de_passages_sont_affiches
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice5 : les_compteurs_de_points_d_ecoute_et_de_passages_sont_affiches"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice5.SiteCarteTest les_compteurs_de_points_d_ecoute_et_de_passages_sont_affiches
+          timeout: 5
+          max-score: 16
+
+      - name: "exercice5 : la_carte_avec_moins_de_sept_jours_affiche_un_badge_vert"
+        id: exercice5_la_carte_avec_moins_de_sept_jours_affiche_un_badge_vert
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice5 : la_carte_avec_moins_de_sept_jours_affiche_un_badge_vert"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice5.SiteCarteTest la_carte_avec_moins_de_sept_jours_affiche_un_badge_vert
+          timeout: 5
+          max-score: 16
+
+      - name: "exercice5 : la_carte_entre_sept_et_trente_jours_affiche_un_badge_orange"
+        id: exercice5_la_carte_entre_sept_et_trente_jours_affiche_un_badge_orange
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice5 : la_carte_entre_sept_et_trente_jours_affiche_un_badge_orange"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice5.SiteCarteTest la_carte_entre_sept_et_trente_jours_affiche_un_badge_orange
+          timeout: 5
+          max-score: 16
+
+      - name: "exercice5 : la_carte_au_dela_de_trente_jours_affiche_un_badge_gris"
+        id: exercice5_la_carte_au_dela_de_trente_jours_affiche_un_badge_gris
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice5 : la_carte_au_dela_de_trente_jours_affiche_un_badge_gris"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice5.SiteCarteTest la_carte_au_dela_de_trente_jours_affiche_un_badge_gris
+          timeout: 5
+          max-score: 16
+
+      - name: "exercice5 : la_carte_sans_aucun_passage_affiche_un_badge_gris_avec_le_texte_jamais_utilise"
+        id: exercice5_la_carte_sans_aucun_passage_affiche_un_badge_gris_avec_le_texte_jamais_utilise
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice5 : la_carte_sans_aucun_passage_affiche_un_badge_gris_avec_le_texte_jamais_utilise"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice5.SiteCarteTest la_carte_sans_aucun_passage_affiche_un_badge_gris_avec_le_texte_jamais_utilise
+          timeout: 5
+          max-score: 16
+
+      - name: "exercice5 : changer_le_nombre_de_jours_met_a_jour_la_classe_css_du_badge"
+        id: exercice5_changer_le_nombre_de_jours_met_a_jour_la_classe_css_du_badge
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice5 : changer_le_nombre_de_jours_met_a_jour_la_classe_css_du_badge"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice5.SiteCarteTest changer_le_nombre_de_jours_met_a_jour_la_classe_css_du_badge
+          timeout: 5
+          max-score: 16
+
+      - name: "exercice6 : l_entete_avec_titre_et_sous_titre_est_affichee"
+        id: exercice6_l_entete_avec_titre_et_sous_titre_est_affichee
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice6 : l_entete_avec_titre_et_sous_titre_est_affichee"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice6.VueAccueilControllerTest l_entete_avec_titre_et_sous_titre_est_affichee
+          timeout: 5
+          max-score: 19
+
+      - name: "exercice6 : le_bouton_nouveau_site_est_present_dans_l_entete"
+        id: exercice6_le_bouton_nouveau_site_est_present_dans_l_entete
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice6 : le_bouton_nouveau_site_est_present_dans_l_entete"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice6.VueAccueilControllerTest le_bouton_nouveau_site_est_present_dans_l_entete
+          timeout: 5
+          max-score: 19
+
+      - name: "exercice6 : la_liste_des_cartes_est_vide_au_demarrage"
+        id: exercice6_la_liste_des_cartes_est_vide_au_demarrage
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice6 : la_liste_des_cartes_est_vide_au_demarrage"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice6.VueAccueilControllerTest la_liste_des_cartes_est_vide_au_demarrage
+          timeout: 5
+          max-score: 18
+
+      - name: "exercice6 : le_sous_titre_indique_aucun_site_declare_au_demarrage"
+        id: exercice6_le_sous_titre_indique_aucun_site_declare_au_demarrage
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice6 : le_sous_titre_indique_aucun_site_declare_au_demarrage"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice6.VueAccueilControllerTest le_sous_titre_indique_aucun_site_declare_au_demarrage
+          timeout: 5
+          max-score: 18
+
+      - name: "exercice6 : cliquer_sur_nouveau_site_ajoute_une_carte_dans_la_liste"
+        id: exercice6_cliquer_sur_nouveau_site_ajoute_une_carte_dans_la_liste
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice6 : cliquer_sur_nouveau_site_ajoute_une_carte_dans_la_liste"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice6.VueAccueilControllerTest cliquer_sur_nouveau_site_ajoute_une_carte_dans_la_liste
+          timeout: 5
+          max-score: 18
+
+      - name: "exercice6 : cliquer_sur_nouveau_site_met_le_sous_titre_a_un_site_declare"
+        id: exercice6_cliquer_sur_nouveau_site_met_le_sous_titre_a_un_site_declare
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice6 : cliquer_sur_nouveau_site_met_le_sous_titre_a_un_site_declare"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice6.VueAccueilControllerTest cliquer_sur_nouveau_site_met_le_sous_titre_a_un_site_declare
+          timeout: 5
+          max-score: 18
+
+      - name: "exercice6 : trois_clics_sur_nouveau_site_ajoutent_trois_cartes_et_passent_le_sous_titre_au_pluriel"
+        id: exercice6_trois_clics_sur_nouveau_site_ajoutent_trois_cartes_et_passent_le_sous_titre_au_pluriel
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice6 : trois_clics_sur_nouveau_site_ajoutent_trois_cartes_et_passent_le_sous_titre_au_pluriel"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice6.VueAccueilControllerTest trois_clics_sur_nouveau_site_ajoutent_trois_cartes_et_passent_le_sous_titre_au_pluriel
+          timeout: 5
+          max-score: 18
+
+      - name: "exercice7 : le_tableview_est_alimente_par_les_sequences_de_la_nuit"
+        id: exercice7_le_tableview_est_alimente_par_les_sequences_de_la_nuit
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice7 : le_tableview_est_alimente_par_les_sequences_de_la_nuit"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice7.QualificationControllerTest le_tableview_est_alimente_par_les_sequences_de_la_nuit
+          timeout: 5
+          max-score: 15
+
+      - name: "exercice7 : le_panneau_de_detail_invite_a_selectionner_une_sequence_au_demarrage"
+        id: exercice7_le_panneau_de_detail_invite_a_selectionner_une_sequence_au_demarrage
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice7 : le_panneau_de_detail_invite_a_selectionner_une_sequence_au_demarrage"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice7.QualificationControllerTest le_panneau_de_detail_invite_a_selectionner_une_sequence_au_demarrage
+          timeout: 5
+          max-score: 15
+
+      - name: "exercice7 : le_bouton_ecouter_est_desactive_sans_selection_dans_le_tableau"
+        id: exercice7_le_bouton_ecouter_est_desactive_sans_selection_dans_le_tableau
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice7 : le_bouton_ecouter_est_desactive_sans_selection_dans_le_tableau"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice7.QualificationControllerTest le_bouton_ecouter_est_desactive_sans_selection_dans_le_tableau
+          timeout: 5
+          max-score: 14
+
+      - name: "exercice7 : selectionner_une_sequence_active_le_bouton_ecouter_et_met_a_jour_le_panneau_de_detail"
+        id: exercice7_selectionner_une_sequence_active_le_bouton_ecouter_et_met_a_jour_le_panneau_de_detail
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice7 : selectionner_une_sequence_active_le_bouton_ecouter_et_met_a_jour_le_panneau_de_detail"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice7.QualificationControllerTest selectionner_une_sequence_active_le_bouton_ecouter_et_met_a_jour_le_panneau_de_detail
+          timeout: 5
+          max-score: 14
+
+      - name: "exercice7 : cliquer_sur_ecouter_passe_le_statut_de_la_sequence_selectionnee_a_ecoutee"
+        id: exercice7_cliquer_sur_ecouter_passe_le_statut_de_la_sequence_selectionnee_a_ecoutee
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice7 : cliquer_sur_ecouter_passe_le_statut_de_la_sequence_selectionnee_a_ecoutee"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice7.QualificationControllerTest cliquer_sur_ecouter_passe_le_statut_de_la_sequence_selectionnee_a_ecoutee
+          timeout: 5
+          max-score: 14
+
+      - name: "exercice7 : le_choicebox_de_verdict_propose_ok_douteux_et_a_jeter"
+        id: exercice7_le_choicebox_de_verdict_propose_ok_douteux_et_a_jeter
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice7 : le_choicebox_de_verdict_propose_ok_douteux_et_a_jeter"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice7.QualificationControllerTest le_choicebox_de_verdict_propose_ok_douteux_et_a_jeter
+          timeout: 5
+          max-score: 14
+
+      - name: "exercice7 : le_label_de_verdict_global_affiche_a_saisir_au_demarrage"
+        id: exercice7_le_label_de_verdict_global_affiche_a_saisir_au_demarrage
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice7 : le_label_de_verdict_global_affiche_a_saisir_au_demarrage"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice7.QualificationControllerTest le_label_de_verdict_global_affiche_a_saisir_au_demarrage
+          timeout: 5
+          max-score: 14
+
+      - name: "exercice7 : cliquer_sur_enregistrer_verdict_alimente_le_modele_et_met_a_jour_le_label"
+        id: exercice7_cliquer_sur_enregistrer_verdict_alimente_le_modele_et_met_a_jour_le_label
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice7 : cliquer_sur_enregistrer_verdict_alimente_le_modele_et_met_a_jour_le_label"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice7.QualificationControllerTest cliquer_sur_enregistrer_verdict_alimente_le_modele_et_met_a_jour_le_label
+          timeout: 5
+          max-score: 14
+
+      - name: "exercice7 : la_zone_de_commentaire_est_liee_au_modele_de_maniere_bidirectionnelle"
+        id: exercice7_la_zone_de_commentaire_est_liee_au_modele_de_maniere_bidirectionnelle
+        uses: IUTInfoAix-R202/autograding-command-grader@main
+        with:
+          test-name: "exercice7 : la_zone_de_commentaire_est_liee_au_modele_de_maniere_bidirectionnelle"
+          setup-command: ""
+          command: ./grade-test.sh fr.univ_amu.iut.exercice7.QualificationControllerTest la_zone_de_commentaire_est_liee_au_modele_de_maniere_bidirectionnelle
+          timeout: 5
+          max-score: 14
+
+      - name: Autograding Reporter
+        uses: IUTInfoAix-R202/autograding-grading-reporter@main
+        continue-on-error: true
+        env:
+          COMPILATION_RESULTS: "${{ steps.compilation.outputs.result }}"
+          EXERCICE1_LA_FENETRE_DE_LA_VUE_FXML_EST_VISIBLE_RESULTS: "${{ steps.exercice1_la_fenetre_de_la_vue_fxml_est_visible.outputs.result }}"
+          EXERCICE1_LA_SCENE_DU_STAGE_CONTIENT_LA_RACINE_FXML_RESULTS: "${{ steps.exercice1_la_scene_du_stage_contient_la_racine_fxml.outputs.result }}"
+          EXERCICE1_LA_RACINE_DE_LA_VUE_FXML_EST_UN_BORDERPANE_RESULTS: "${{ steps.exercice1_la_racine_de_la_vue_fxml_est_un_borderpane.outputs.result }}"
+          EXERCICE1_LE_STAGE_PORTE_LE_TITRE_ATTENDU_RESULTS: "${{ steps.exercice1_le_stage_porte_le_titre_attendu.outputs.result }}"
+          EXERCICE1_LE_LABEL_DE_BIENVENUE_EST_AFFICHE_DANS_LA_VUE_RESULTS: "${{ steps.exercice1_le_label_de_bienvenue_est_affiche_dans_la_vue.outputs.result }}"
+          EXERCICE1_LE_BOUTON_EST_AFFICHE_DANS_LA_VUE_RESULTS: "${{ steps.exercice1_le_bouton_est_affiche_dans_la_vue.outputs.result }}"
+          EXERCICE2_LE_COMPTEUR_AFFICHE_ZERO_AU_DEMARRAGE_RESULTS: "${{ steps.exercice2_le_compteur_affiche_zero_au_demarrage.outputs.result }}"
+          EXERCICE2_LE_BOUTON_PLUS_EST_PRESENT_ET_LIBELLE_AVEC_PLUS_RESULTS: "${{ steps.exercice2_le_bouton_plus_est_present_et_libelle_avec_plus.outputs.result }}"
+          EXERCICE2_CLIQUER_SUR_LE_BOUTON_PLUS_INCREMENTE_LE_COMPTEUR_DE_UN_RESULTS: "${{ steps.exercice2_cliquer_sur_le_bouton_plus_incremente_le_compteur_de_un.outputs.result }}"
+          EXERCICE2_TROIS_CLICS_SUR_PLUS_PORTENT_LE_COMPTEUR_A_TROIS_RESULTS: "${{ steps.exercice2_trois_clics_sur_plus_portent_le_compteur_a_trois.outputs.result }}"
+          EXERCICE2_CLIQUER_SUR_LE_BOUTON_MOINS_DECREMENTE_LE_COMPTEUR_DE_UN_RESULTS: "${{ steps.exercice2_cliquer_sur_le_bouton_moins_decremente_le_compteur_de_un.outputs.result }}"
+          EXERCICE2_DEUX_INCREMENTS_PUIS_DEUX_DECREMENTS_RAMENENT_LE_COMPTEUR_A_ZERO_RESULTS: "${{ steps.exercice2_deux_increments_puis_deux_decrements_ramenent_le_compteur_a_zero.outputs.result }}"
+          EXERCICE2_CLIQUER_SUR_REINITIALISER_REMET_LE_COMPTEUR_A_ZERO_RESULTS: "${{ steps.exercice2_cliquer_sur_reinitialiser_remet_le_compteur_a_zero.outputs.result }}"
+          EXERCICE3_LES_CHAMPS_IDENTIFIANT_ET_MOT_DE_PASSE_SONT_PRESENTS_RESULTS: "${{ steps.exercice3_les_champs_identifiant_et_mot_de_passe_sont_presents.outputs.result }}"
+          EXERCICE3_LES_BOUTONS_OK_ET_ANNULER_SONT_PRESENTS_RESULTS: "${{ steps.exercice3_les_boutons_ok_et_annuler_sont_presents.outputs.result }}"
+          EXERCICE3_LE_MOT_DE_PASSE_EST_NON_EDITABLE_AU_DEMARRAGE_RESULTS: "${{ steps.exercice3_le_mot_de_passe_est_non_editable_au_demarrage.outputs.result }}"
+          EXERCICE3_LE_BOUTON_OK_EST_DESACTIVE_AU_DEMARRAGE_RESULTS: "${{ steps.exercice3_le_bouton_ok_est_desactive_au_demarrage.outputs.result }}"
+          EXERCICE3_LE_BOUTON_ANNULER_EST_DESACTIVE_SI_LES_DEUX_CHAMPS_SONT_VIDES_RESULTS: "${{ steps.exercice3_le_bouton_annuler_est_desactive_si_les_deux_champs_sont_vides.outputs.result }}"
+          EXERCICE3_LE_MOT_DE_PASSE_DEVIENT_EDITABLE_QUAND_L_IDENTIFIANT_ATTEINT_SIX_CARACTERES_RESULTS: "${{ steps.exercice3_le_mot_de_passe_devient_editable_quand_l_identifiant_atteint_six_caracteres.outputs.result }}"
+          EXERCICE3_LE_BOUTON_OK_RESTE_DESACTIVE_SI_LE_MOT_DE_PASSE_EST_TROP_COURT_RESULTS: "${{ steps.exercice3_le_bouton_ok_reste_desactive_si_le_mot_de_passe_est_trop_court.outputs.result }}"
+          EXERCICE3_LE_BOUTON_OK_RESTE_DESACTIVE_SANS_MAJUSCULE_DANS_LE_MOT_DE_PASSE_RESULTS: "${{ steps.exercice3_le_bouton_ok_reste_desactive_sans_majuscule_dans_le_mot_de_passe.outputs.result }}"
+          EXERCICE3_LE_BOUTON_OK_RESTE_DESACTIVE_SANS_CHIFFRE_DANS_LE_MOT_DE_PASSE_RESULTS: "${{ steps.exercice3_le_bouton_ok_reste_desactive_sans_chiffre_dans_le_mot_de_passe.outputs.result }}"
+          EXERCICE3_LE_BOUTON_OK_S_ACTIVE_QUAND_LE_MOT_DE_PASSE_RESPECTE_LES_TROIS_REGLES_RESULTS: "${{ steps.exercice3_le_bouton_ok_s_active_quand_le_mot_de_passe_respecte_les_trois_regles.outputs.result }}"
+          EXERCICE3_CLIQUER_SUR_VALIDER_AFFICHE_L_IDENTIFIANT_ET_LE_MOT_DE_PASSE_MASQUE_RESULTS: "${{ steps.exercice3_cliquer_sur_valider_affiche_l_identifiant_et_le_mot_de_passe_masque.outputs.result }}"
+          EXERCICE3_CLIQUER_SUR_ANNULER_VIDE_LES_DEUX_CHAMPS_ET_LE_LABEL_MESSAGE_RESULTS: "${{ steps.exercice3_cliquer_sur_annuler_vide_les_deux_champs_et_le_label_message.outputs.result }}"
+          EXERCICE4_LE_TITRE_CENTRAL_AFFICHE_MES_SITES_DE_SUIVI_AU_DEMARRAGE_RESULTS: "${{ steps.exercice4_le_titre_central_affiche_mes_sites_de_suivi_au_demarrage.outputs.result }}"
+          EXERCICE4_LE_LABEL_DE_STATUT_EST_PRESENT_DANS_LA_BARRE_DE_STATUT_RESULTS: "${{ steps.exercice4_le_label_de_statut_est_present_dans_la_barre_de_statut.outputs.result }}"
+          EXERCICE4_LE_MENU_BAR_CONTIENT_LES_MENUS_FICHIER_ET_AFFICHAGE_RESULTS: "${{ steps.exercice4_le_menu_bar_contient_les_menus_fichier_et_affichage.outputs.result }}"
+          EXERCICE4_CLIQUER_SUR_LE_MENU_MES_SITES_MET_LE_TITRE_CENTRAL_A_MES_SITES_DE_SUIVI_RESULTS: "${{ steps.exercice4_cliquer_sur_le_menu_mes_sites_met_le_titre_central_a_mes_sites_de_suivi.outputs.result }}"
+          EXERCICE4_CLIQUER_SUR_LE_MENU_IMPORTER_MET_LE_TITRE_CENTRAL_A_IMPORTER_UNE_NUIT_RESULTS: "${{ steps.exercice4_cliquer_sur_le_menu_importer_met_le_titre_central_a_importer_une_nuit.outputs.result }}"
+          EXERCICE4_CLIQUER_SUR_LE_MENU_VUE_TABULAIRE_MET_LE_TITRE_CENTRAL_A_VUE_TABULAIRE_DES_PASSAGES_RESULTS: "${{ steps.exercice4_cliquer_sur_le_menu_vue_tabulaire_met_le_titre_central_a_vue_tabulaire_des_passages.outputs.result }}"
+          EXERCICE4_CLIQUER_SUR_LE_MENU_PARAMETRES_MET_LE_TITRE_CENTRAL_A_PARAMETRES_DE_L_APPLICATION_RESULTS: "${{ steps.exercice4_cliquer_sur_le_menu_parametres_met_le_titre_central_a_parametres_de_l_application.outputs.result }}"
+          EXERCICE4_CLIQUER_SUR_UN_MENU_MET_A_JOUR_LE_LABEL_DE_LA_BARRE_DE_STATUT_RESULTS: "${{ steps.exercice4_cliquer_sur_un_menu_met_a_jour_le_label_de_la_barre_de_statut.outputs.result }}"
+          EXERCICE5_LE_NUMERO_DE_CARRE_EST_AFFICHE_DANS_LA_CARTE_RESULTS: "${{ steps.exercice5_le_numero_de_carre_est_affiche_dans_la_carte.outputs.result }}"
+          EXERCICE5_LE_NOM_CONVIVIAL_EST_AFFICHE_DANS_LA_CARTE_RESULTS: "${{ steps.exercice5_le_nom_convivial_est_affiche_dans_la_carte.outputs.result }}"
+          EXERCICE5_LES_COMPTEURS_DE_POINTS_D_ECOUTE_ET_DE_PASSAGES_SONT_AFFICHES_RESULTS: "${{ steps.exercice5_les_compteurs_de_points_d_ecoute_et_de_passages_sont_affiches.outputs.result }}"
+          EXERCICE5_LA_CARTE_AVEC_MOINS_DE_SEPT_JOURS_AFFICHE_UN_BADGE_VERT_RESULTS: "${{ steps.exercice5_la_carte_avec_moins_de_sept_jours_affiche_un_badge_vert.outputs.result }}"
+          EXERCICE5_LA_CARTE_ENTRE_SEPT_ET_TRENTE_JOURS_AFFICHE_UN_BADGE_ORANGE_RESULTS: "${{ steps.exercice5_la_carte_entre_sept_et_trente_jours_affiche_un_badge_orange.outputs.result }}"
+          EXERCICE5_LA_CARTE_AU_DELA_DE_TRENTE_JOURS_AFFICHE_UN_BADGE_GRIS_RESULTS: "${{ steps.exercice5_la_carte_au_dela_de_trente_jours_affiche_un_badge_gris.outputs.result }}"
+          EXERCICE5_LA_CARTE_SANS_AUCUN_PASSAGE_AFFICHE_UN_BADGE_GRIS_AVEC_LE_TEXTE_JAMAIS_UTILISE_RESULTS: "${{ steps.exercice5_la_carte_sans_aucun_passage_affiche_un_badge_gris_avec_le_texte_jamais_utilise.outputs.result }}"
+          EXERCICE5_CHANGER_LE_NOMBRE_DE_JOURS_MET_A_JOUR_LA_CLASSE_CSS_DU_BADGE_RESULTS: "${{ steps.exercice5_changer_le_nombre_de_jours_met_a_jour_la_classe_css_du_badge.outputs.result }}"
+          EXERCICE6_L_ENTETE_AVEC_TITRE_ET_SOUS_TITRE_EST_AFFICHEE_RESULTS: "${{ steps.exercice6_l_entete_avec_titre_et_sous_titre_est_affichee.outputs.result }}"
+          EXERCICE6_LE_BOUTON_NOUVEAU_SITE_EST_PRESENT_DANS_L_ENTETE_RESULTS: "${{ steps.exercice6_le_bouton_nouveau_site_est_present_dans_l_entete.outputs.result }}"
+          EXERCICE6_LA_LISTE_DES_CARTES_EST_VIDE_AU_DEMARRAGE_RESULTS: "${{ steps.exercice6_la_liste_des_cartes_est_vide_au_demarrage.outputs.result }}"
+          EXERCICE6_LE_SOUS_TITRE_INDIQUE_AUCUN_SITE_DECLARE_AU_DEMARRAGE_RESULTS: "${{ steps.exercice6_le_sous_titre_indique_aucun_site_declare_au_demarrage.outputs.result }}"
+          EXERCICE6_CLIQUER_SUR_NOUVEAU_SITE_AJOUTE_UNE_CARTE_DANS_LA_LISTE_RESULTS: "${{ steps.exercice6_cliquer_sur_nouveau_site_ajoute_une_carte_dans_la_liste.outputs.result }}"
+          EXERCICE6_CLIQUER_SUR_NOUVEAU_SITE_MET_LE_SOUS_TITRE_A_UN_SITE_DECLARE_RESULTS: "${{ steps.exercice6_cliquer_sur_nouveau_site_met_le_sous_titre_a_un_site_declare.outputs.result }}"
+          EXERCICE6_TROIS_CLICS_SUR_NOUVEAU_SITE_AJOUTENT_TROIS_CARTES_ET_PASSENT_LE_SOUS_TITRE_AU_PLURIEL_RESULTS: "${{ steps.exercice6_trois_clics_sur_nouveau_site_ajoutent_trois_cartes_et_passent_le_sous_titre_au_pluriel.outputs.result }}"
+          EXERCICE7_LE_TABLEVIEW_EST_ALIMENTE_PAR_LES_SEQUENCES_DE_LA_NUIT_RESULTS: "${{ steps.exercice7_le_tableview_est_alimente_par_les_sequences_de_la_nuit.outputs.result }}"
+          EXERCICE7_LE_PANNEAU_DE_DETAIL_INVITE_A_SELECTIONNER_UNE_SEQUENCE_AU_DEMARRAGE_RESULTS: "${{ steps.exercice7_le_panneau_de_detail_invite_a_selectionner_une_sequence_au_demarrage.outputs.result }}"
+          EXERCICE7_LE_BOUTON_ECOUTER_EST_DESACTIVE_SANS_SELECTION_DANS_LE_TABLEAU_RESULTS: "${{ steps.exercice7_le_bouton_ecouter_est_desactive_sans_selection_dans_le_tableau.outputs.result }}"
+          EXERCICE7_SELECTIONNER_UNE_SEQUENCE_ACTIVE_LE_BOUTON_ECOUTER_ET_MET_A_JOUR_LE_PANNEAU_DE_DETAIL_RESULTS: "${{ steps.exercice7_selectionner_une_sequence_active_le_bouton_ecouter_et_met_a_jour_le_panneau_de_detail.outputs.result }}"
+          EXERCICE7_CLIQUER_SUR_ECOUTER_PASSE_LE_STATUT_DE_LA_SEQUENCE_SELECTIONNEE_A_ECOUTEE_RESULTS: "${{ steps.exercice7_cliquer_sur_ecouter_passe_le_statut_de_la_sequence_selectionnee_a_ecoutee.outputs.result }}"
+          EXERCICE7_LE_CHOICEBOX_DE_VERDICT_PROPOSE_OK_DOUTEUX_ET_A_JETER_RESULTS: "${{ steps.exercice7_le_choicebox_de_verdict_propose_ok_douteux_et_a_jeter.outputs.result }}"
+          EXERCICE7_LE_LABEL_DE_VERDICT_GLOBAL_AFFICHE_A_SAISIR_AU_DEMARRAGE_RESULTS: "${{ steps.exercice7_le_label_de_verdict_global_affiche_a_saisir_au_demarrage.outputs.result }}"
+          EXERCICE7_CLIQUER_SUR_ENREGISTRER_VERDICT_ALIMENTE_LE_MODELE_ET_MET_A_JOUR_LE_LABEL_RESULTS: "${{ steps.exercice7_cliquer_sur_enregistrer_verdict_alimente_le_modele_et_met_a_jour_le_label.outputs.result }}"
+          EXERCICE7_LA_ZONE_DE_COMMENTAIRE_EST_LIEE_AU_MODELE_DE_MANIERE_BIDIRECTIONNELLE_RESULTS: "${{ steps.exercice7_la_zone_de_commentaire_est_liee_au_modele_de_maniere_bidirectionnelle.outputs.result }}"
+        with:
+          runners: compilation,exercice1_la_fenetre_de_la_vue_fxml_est_visible,exercice1_la_scene_du_stage_contient_la_racine_fxml,exercice1_la_racine_de_la_vue_fxml_est_un_borderpane,exercice1_le_stage_porte_le_titre_attendu,exercice1_le_label_de_bienvenue_est_affiche_dans_la_vue,exercice1_le_bouton_est_affiche_dans_la_vue,exercice2_le_compteur_affiche_zero_au_demarrage,exercice2_le_bouton_plus_est_present_et_libelle_avec_plus,exercice2_cliquer_sur_le_bouton_plus_incremente_le_compteur_de_un,exercice2_trois_clics_sur_plus_portent_le_compteur_a_trois,exercice2_cliquer_sur_le_bouton_moins_decremente_le_compteur_de_un,exercice2_deux_increments_puis_deux_decrements_ramenent_le_compteur_a_zero,exercice2_cliquer_sur_reinitialiser_remet_le_compteur_a_zero,exercice3_les_champs_identifiant_et_mot_de_passe_sont_presents,exercice3_les_boutons_ok_et_annuler_sont_presents,exercice3_le_mot_de_passe_est_non_editable_au_demarrage,exercice3_le_bouton_ok_est_desactive_au_demarrage,exercice3_le_bouton_annuler_est_desactive_si_les_deux_champs_sont_vides,exercice3_le_mot_de_passe_devient_editable_quand_l_identifiant_atteint_six_caracteres,exercice3_le_bouton_ok_reste_desactive_si_le_mot_de_passe_est_trop_court,exercice3_le_bouton_ok_reste_desactive_sans_majuscule_dans_le_mot_de_passe,exercice3_le_bouton_ok_reste_desactive_sans_chiffre_dans_le_mot_de_passe,exercice3_le_bouton_ok_s_active_quand_le_mot_de_passe_respecte_les_trois_regles,exercice3_cliquer_sur_valider_affiche_l_identifiant_et_le_mot_de_passe_masque,exercice3_cliquer_sur_annuler_vide_les_deux_champs_et_le_label_message,exercice4_le_titre_central_affiche_mes_sites_de_suivi_au_demarrage,exercice4_le_label_de_statut_est_present_dans_la_barre_de_statut,exercice4_le_menu_bar_contient_les_menus_fichier_et_affichage,exercice4_cliquer_sur_le_menu_mes_sites_met_le_titre_central_a_mes_sites_de_suivi,exercice4_cliquer_sur_le_menu_importer_met_le_titre_central_a_importer_une_nuit,exercice4_cliquer_sur_le_menu_vue_tabulaire_met_le_titre_central_a_vue_tabulaire_des_passages,exercice4_cliquer_sur_le_menu_parametres_met_le_titre_central_a_parametres_de_l_application,exercice4_cliquer_sur_un_menu_met_a_jour_le_label_de_la_barre_de_statut,exercice5_le_numero_de_carre_est_affiche_dans_la_carte,exercice5_le_nom_convivial_est_affiche_dans_la_carte,exercice5_les_compteurs_de_points_d_ecoute_et_de_passages_sont_affiches,exercice5_la_carte_avec_moins_de_sept_jours_affiche_un_badge_vert,exercice5_la_carte_entre_sept_et_trente_jours_affiche_un_badge_orange,exercice5_la_carte_au_dela_de_trente_jours_affiche_un_badge_gris,exercice5_la_carte_sans_aucun_passage_affiche_un_badge_gris_avec_le_texte_jamais_utilise,exercice5_changer_le_nombre_de_jours_met_a_jour_la_classe_css_du_badge,exercice6_l_entete_avec_titre_et_sous_titre_est_affichee,exercice6_le_bouton_nouveau_site_est_present_dans_l_entete,exercice6_la_liste_des_cartes_est_vide_au_demarrage,exercice6_le_sous_titre_indique_aucun_site_declare_au_demarrage,exercice6_cliquer_sur_nouveau_site_ajoute_une_carte_dans_la_liste,exercice6_cliquer_sur_nouveau_site_met_le_sous_titre_a_un_site_declare,exercice6_trois_clics_sur_nouveau_site_ajoutent_trois_cartes_et_passent_le_sous_titre_au_pluriel,exercice7_le_tableview_est_alimente_par_les_sequences_de_la_nuit,exercice7_le_panneau_de_detail_invite_a_selectionner_une_sequence_au_demarrage,exercice7_le_bouton_ecouter_est_desactive_sans_selection_dans_le_tableau,exercice7_selectionner_une_sequence_active_le_bouton_ecouter_et_met_a_jour_le_panneau_de_detail,exercice7_cliquer_sur_ecouter_passe_le_statut_de_la_sequence_selectionnee_a_ecoutee,exercice7_le_choicebox_de_verdict_propose_ok_douteux_et_a_jeter,exercice7_le_label_de_verdict_global_affiche_a_saisir_au_demarrage,exercice7_cliquer_sur_enregistrer_verdict_alimente_le_modele_et_met_a_jour_le_label,exercice7_la_zone_de_commentaire_est_liee_au_modele_de_maniere_bidirectionnelle
+
+      - name: Sauvegarder le cache des rapports Surefire
+        if: always()
+        uses: actions/cache/save@v5
+        with:
+          path: target/surefire-reports
+          key: surefire-${{ github.ref_name }}-${{ github.sha }}
+      #@@@AUTOGRADING-END@@@

@@ -1,0 +1,76 @@
+/*
+ * Feuille de style du composant SiteCarte.
+ *
+ * Les classes CSS appliquées au badge sont sélectionnées dynamiquement par le
+ * contrôleur en fonction du nombre de jours écoulés depuis le dernier passage :
+ *   - badge-fresh : passage récent (< 7 j)
+ *   - badge-stale : passage moyennement ancien (7-30 j)
+ *   - badge-cold  : passage très ancien (> 30 j) ou aucun passage
+ *
+ * Les couleurs reprennent celles utilisées dans les SVG des maquettes du brief
+ * SAE 2.01 pour rester cohérentes avec le reste de l'application.
+ */
+
+.carte-site {
+  -fx-background-color: white;
+  -fx-border-color: #d0d7de;
+  -fx-border-width: 1;
+  -fx-border-radius: 6;
+  -fx-background-radius: 6;
+}
+
+.carte-site:hover {
+  -fx-border-color: #4a90d9;
+  -fx-background-color: #f6f8fa;
+  -fx-cursor: hand;
+}
+
+.carre-no {
+  -fx-font-size: 20px;
+  -fx-font-weight: bold;
+  -fx-text-fill: #2c3e50;
+}
+
+.carre-nom {
+  -fx-font-size: 13px;
+  -fx-text-fill: #6a737d;
+}
+
+.badge {
+  -fx-padding: 3 10 3 10;
+  -fx-background-radius: 11;
+  -fx-border-radius: 11;
+  -fx-font-size: 11px;
+  -fx-font-weight: bold;
+}
+
+.badge-fresh {
+  -fx-background-color: #d4edda;
+  -fx-border-color: #27ae60;
+  -fx-border-width: 1;
+  -fx-text-fill: #1e6f3f;
+}
+
+.badge-stale {
+  -fx-background-color: #fff3cd;
+  -fx-border-color: #b9770e;
+  -fx-border-width: 1;
+  -fx-text-fill: #7e5109;
+}
+
+.badge-cold {
+  -fx-background-color: #f6f8fa;
+  -fx-border-color: #6a737d;
+  -fx-border-width: 1;
+  -fx-text-fill: #2c3e50;
+}
+
+.stat {
+  -fx-alignment: CENTER;
+}
+
+.stat-num {
+  -fx-font-size: 13px;
+  -fx-text-fill: #4a90d9;
+  -fx-font-weight: bold;
+}

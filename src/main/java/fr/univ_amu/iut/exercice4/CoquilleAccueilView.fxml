@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.Menu?>
+<?import javafx.scene.control.MenuBar?>
+<?import javafx.scene.control.MenuItem?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Pane?>
+<?import javafx.scene.layout.VBox?>
+
+<!--
+  Coquille principale - maquette M-Sites simplifiée.
+
+  Structure :
+    - top    = MenuBar (Fichier > Quitter ; Affichage > Mes sites, Importer une nuit, ...)
+    - center = VBox avec un titre dynamique + un petit texte d'invite
+    - bottom = HBox (barre de statut) avec un rappel BDD locale à gauche et un statut à droite
+
+  Le controleur (fx:controller) reçoit les clics de menu via onAction="#nomMethode"
+  et met à jour les labels du center et du bottom.
+-->
+
+<BorderPane xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="fr.univ_amu.iut.exercice4.CoquilleAccueilController"
+            prefWidth="720.0" prefHeight="480.0">
+
+  <top>
+    <MenuBar>
+      <menus>
+        <Menu text="Fichier">
+          <items>
+            <MenuItem text="Quitter" onAction="#onQuitter"/>
+          </items>
+        </Menu>
+        <Menu text="Affichage">
+          <items>
+            <MenuItem text="Mes sites" onAction="#onMesSites"/>
+            <MenuItem text="Importer une nuit" onAction="#onImporter"/>
+            <MenuItem text="Vue tabulaire" onAction="#onVueTabulaire"/>
+            <MenuItem text="Paramètres" onAction="#onParametres"/>
+          </items>
+        </Menu>
+      </menus>
+    </MenuBar>
+  </top>
+
+  <center>
+    <VBox alignment="CENTER" spacing="16">
+      <padding>
+        <Insets top="40" right="40" bottom="40" left="40"/>
+      </padding>
+      <Label fx:id="labelTitre"
+             text="Mes sites de suivi"
+             style="-fx-font-size: 22px; -fx-font-weight: bold; -fx-text-fill: #2c3e50;"/>
+      <Label text="Choisissez une rubrique dans le menu Affichage pour naviguer."
+             style="-fx-text-fill: #6a737d;"/>
+    </VBox>
+  </center>
+
+  <bottom>
+    <HBox spacing="10" alignment="CENTER_LEFT"
+          style="-fx-background-color: #f6f8fa; -fx-border-color: #d0d7de; -fx-border-width: 1 0 0 0;">
+      <padding>
+        <Insets top="6" right="12" bottom="6" left="12"/>
+      </padding>
+      <Label text="💾 Base locale : ~/VigieChiroCompanion/companion.db"
+             style="-fx-text-fill: #6a737d;"/>
+      <Pane HBox.hgrow="ALWAYS"/>
+      <Label fx:id="labelStatut"
+             text="Prêt."
+             style="-fx-text-fill: #6a737d;"/>
+    </HBox>
+  </bottom>
+</BorderPane>

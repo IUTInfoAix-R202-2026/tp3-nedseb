@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import fr.univ_amu.iut.bonus10.Othellier?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Pane?>
+<?import javafx.scene.layout.VBox?>
+
+<!--
+  Vue de l'Othello complet (bonus 10).
+
+  L'Othellier est un composant Java auto-suffisant : il instancie ses 64 cases
+  dans son constructeur et embarque la logique de jeu. On l'inclut donc
+  directement comme n'importe quel autre noeud (élément XML <Othellier/>).
+-->
+
+<BorderPane xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="fr.univ_amu.iut.bonus10.OthelloController"
+            fx:id="racine"
+            prefWidth="560.0" prefHeight="680.0">
+
+  <top>
+    <VBox spacing="6"
+          style="-fx-background-color: #1f2937;">
+      <padding>
+        <Insets top="14" right="20" bottom="14" left="20"/>
+      </padding>
+      <Label fx:id="labelJoueurCourant"
+             style="-fx-text-fill: #f9fafb; -fx-font-size: 18px; -fx-font-weight: bold;"/>
+      <HBox spacing="20">
+        <Label fx:id="labelScoreNoir"
+               style="-fx-text-fill: #f9fafb; -fx-font-size: 14px;"/>
+        <Label fx:id="labelScoreBlanc"
+               style="-fx-text-fill: #f9fafb; -fx-font-size: 14px;"/>
+      </HBox>
+    </VBox>
+  </top>
+
+  <center>
+    <Othellier fx:id="othellier"/>
+  </center>
+
+  <bottom>
+    <HBox spacing="10" alignment="CENTER_LEFT"
+          style="-fx-background-color: #f6f8fa; -fx-border-color: #d0d7de; -fx-border-width: 1 0 0 0;">
+      <padding>
+        <Insets top="10" right="20" bottom="10" left="20"/>
+      </padding>
+      <Label fx:id="labelFinDePartie"
+             style="-fx-font-weight: bold; -fx-text-fill: #2c3e50;"/>
+      <Pane HBox.hgrow="ALWAYS"/>
+      <Button text="Nouvelle partie" onAction="#onNouvellePartie"/>
+    </HBox>
+  </bottom>
+</BorderPane>

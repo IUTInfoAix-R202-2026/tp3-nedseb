@@ -1,0 +1,40 @@
+/* Thème sombre. Mêmes sélecteurs que theme-clair.css : seules les couleurs changent. */
+
+.fond {
+  -fx-background-color: #1f2937;
+}
+
+.titre {
+  -fx-font-size: 22px;
+  -fx-font-weight: bold;
+  -fx-text-fill: #f3f4f6;
+}
+
+.sous-titre {
+  -fx-font-size: 13px;
+  -fx-text-fill: #d1d5db;
+  -fx-wrap-text: true;
+}
+
+.card {
+  -fx-background-color: #374151;
+  -fx-border-color: #6b7280;
+  -fx-border-width: 1;
+  -fx-background-radius: 6;
+  -fx-border-radius: 6;
+  -fx-padding: 12;
+}
+
+.titre-card {
+  -fx-font-weight: bold;
+  -fx-text-fill: #f9fafb;
+}
+
+.texte-card {
+  -fx-text-fill: #e5e7eb;
+}
+
+.toggle-button {
+  -fx-background-color: #4a90d9;
+  -fx-text-fill: white;
+}

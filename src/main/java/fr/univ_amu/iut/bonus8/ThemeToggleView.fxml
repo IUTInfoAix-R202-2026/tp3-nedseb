@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ToggleButton?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.VBox?>
+
+<!--
+  Vue d'illustration du bonus 8.
+
+  Un ToggleButton bascule le thème global. La racine porte la styleClass "fond"
+  et les labels/cards utilisent .titre / .sous-titre / .card pour être themables
+  proprement via les deux feuilles CSS (theme-clair.css et theme-sombre.css).
+-->
+
+<VBox xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="fr.univ_amu.iut.bonus8.ThemeToggleController"
+      fx:id="racine"
+      spacing="14"
+      styleClass="fond">
+
+  <padding>
+    <Insets top="20" right="20" bottom="20" left="20"/>
+  </padding>
+
+  <HBox spacing="10" alignment="CENTER_RIGHT">
+    <ToggleButton fx:id="boutonTheme" text="🌙 Mode sombre"/>
+  </HBox>
+
+  <Label text="Bascule du thème" styleClass="titre"/>
+
+  <Label styleClass="sous-titre"
+         text="Cliquez sur le bouton en haut à droite pour basculer entre thème clair et thème sombre. La même Scene, la même hiérarchie de nœuds : seule la feuille CSS active change."/>
+
+  <VBox spacing="6" styleClass="card">
+    <Label text="Carte d'exemple" styleClass="titre-card"/>
+    <Label text="Le rendu de cette carte dépend de la feuille CSS active."
+           styleClass="texte-card"/>
+  </VBox>
+</VBox>
