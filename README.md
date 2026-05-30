@@ -311,6 +311,10 @@ Quelques exemples concrets, extraits du TP :
 
 **Objectif** : écrire une vue FXML minimale, puis l'afficher dans une fenêtre depuis le code Java.
 
+**Résultat attendu :**
+
+<img alt="Résultat attendu - Exercice 1 : une vue FXML minimale (titre, texte, bouton) affichée dans une fenêtre" src=".github/assets/apercu-ex1-premiere-vue.png" width="420"/>
+
 **Ce que vous allez découvrir** :
 - Le fichier FXML : un format XML qui décrit la **structure** d'une vue (les nœuds, leurs propriétés, leurs imbrications).
 - La syntaxe de base d'un FXML : déclaration XML, balises `<?import ...?>` qui jouent le rôle des `import` Java, élément racine avec ses attributs `xmlns`, contenu imbriqué.
@@ -389,6 +393,10 @@ Quand un attribut vous est inconnu, ouvrez la [Javadoc JavaFX 25](https://openjf
 
 **Objectif** : associer un **contrôleur Java** à une vue FXML, injecter les composants via `@FXML` et réagir à un `onAction`.
 
+**Résultat attendu :**
+
+<img alt="Résultat attendu - Exercice 2 : un compteur FXML avec boutons +, - et Réinitialiser pilotés par le contrôleur" src=".github/assets/apercu-ex2-compteur.png" width="360"/>
+
 **Ce que vous allez découvrir** :
 - L'attribut `fx:controller` sur le nœud racine du FXML : indique au `FXMLLoader` quelle classe instancier comme contrôleur.
 - L'annotation `@FXML` sur un champ du contrôleur : le `FXMLLoader` injecte automatiquement le composant dont le `fx:id` correspond au nom du champ.
@@ -441,6 +449,10 @@ private final IntegerProperty compteur = new SimpleIntegerProperty(0);
 ## Exercice 3 - Formulaire de connexion avec CSS et bindings
 
 **Objectif** : construire un formulaire complet en FXML (`GridPane` + `Label` + `TextField` + `Button`), lui appliquer une **feuille CSS**, et écrire les **bindings de validation** dans le contrôleur.
+
+**Résultat attendu :**
+
+<img alt="Résultat attendu - Exercice 3 : formulaire de connexion stylé en CSS, bouton activé par les bindings de validation" src=".github/assets/apercu-ex3-formulaire.png" width="360"/>
 
 **Ce que vous allez découvrir** :
 - L'attribut `stylesheets="@FormulaireConnexion.css"` sur la racine du FXML : charge une feuille CSS locale (le `@` signifie « chemin relatif au FXML »).
@@ -501,6 +513,10 @@ private final IntegerProperty compteur = new SimpleIntegerProperty(0);
 
 **Objectif** : construire la **coquille** d'une application JavaFX complète en FXML : `BorderPane` avec un `MenuBar` en haut, une zone centrale dynamique, et une barre de statut en bas.
 
+**Résultat attendu :**
+
+<img alt="Résultat attendu - Exercice 4 : coquille BorderPane (MenuBar en haut, zone centrale, barre de statut en bas)" src=".github/assets/apercu-ex4-coquille.png" width="640"/>
+
 **Ce que vous allez découvrir** :
 - L'écriture déclarative d'un `BorderPane` en FXML : `<top>`, `<center>`, `<bottom>` reçoivent chacun **un seul** nœud (souvent un `VBox` ou un `HBox`).
 - La déclaration d'un `MenuBar` avec ses `Menu` et `MenuItem`. Chaque `MenuItem` peut porter son propre `onAction="#nomMethode"`.
@@ -542,6 +558,10 @@ Notez que **`onQuitter` n'a pas de test associé** : la fermeture de la fenêtre
 ## Exercice 5 - Composant réutilisable `SiteCarte` (`fx:root`)
 
 **Objectif** : créer un **composant graphique réutilisable** : une **tuile récapitulative de site** avec numéro de carré, nom, badge de fraîcheur coloré, et statistiques (c'est l'objet introduit dans le tableau SAÉ en haut du TP). La tuile expose des **propriétés observables** auxquelles l'utilisateur peut se brancher en Java.
+
+**Résultat attendu :**
+
+<img alt="Résultat attendu - Exercice 5 : une tuile SiteCarte (numéro de carré, nom, badge de fraîcheur, statistiques)" src=".github/assets/apercu-ex5-sitecarte.png" width="680"/>
 
 **Ce que vous allez découvrir** :
 - Le pattern `<fx:root type="..."/>` : le FXML ne déclare pas de classe racine concrète, mais un **type abstrait** que le code Java fournira via `FXMLLoader.setRoot(this)`. La même classe joue le rôle de racine **et** de contrôleur.
@@ -614,6 +634,10 @@ flowchart LR
 
 **Objectif** : composer une application à partir de **deux sous-vues FXML** chacune avec son propre contrôleur. Faire dialoguer les sous-contrôleurs via un contrôleur parent.
 
+**Résultat attendu :**
+
+<img alt="Résultat attendu - Exercice 6 : la vue d'accueil composée par fx:include (en-tête + liste de sites)" src=".github/assets/apercu-ex6-vueaccueil.png" width="700"/>
+
 **Ce que vous allez découvrir** :
 - L'élément `<fx:include source="..." fx:id="..."/>` : insère une sous-vue dans la vue parente. Chaque sous-vue garde son propre `fx:controller`.
 - L'**injection automatique des sous-contrôleurs** dans le contrôleur parent : pour chaque `fx:include` portant `fx:id="enTete"`, le parent reçoit deux champs `@FXML` : `enTete` (le nœud racine de la sous-vue) et `enTeteController` (l'instance de son contrôleur). Le suffixe `Controller` est figé : c'est la constante `FXMLLoader.CONTROLLER_SUFFIX` (`public static final String`), concaténée littéralement au `fx:id`. Pas paramétrable.
@@ -682,6 +706,10 @@ flowchart TB
 ## Exercice 7 - Vérifier une nuit d'enregistrement (pierre angulaire MVC)
 
 **Objectif** : faire converger tous les apports du TP3 sur un cas d'usage **réel de la SAÉ** : la vérification par échantillonnage d'une nuit de capture (parcours [P3 du brief](https://github.com/IUTInfoAix-S201/brief)).
+
+**Résultat attendu :**
+
+<img alt="Résultat attendu - Exercice 7 : écran de vérification d'une nuit (tableau de séquences + panneau de qualification)" src=".github/assets/apercu-ex7-qualification.png" width="720"/>
 
 ```mermaid
 flowchart LR
@@ -772,17 +800,29 @@ Les bonus sont **facultatifs** et **non notés** : à faire si vous avez termin�
 
 **Objectif** : démontrer le **theming CSS dynamique** d'une application JavaFX. Un `ToggleButton` bascule entre `theme-clair.css` et `theme-sombre.css` en remplaçant la feuille active de la scène (`scene.getStylesheets().setAll(...)`). Aucune reconstruction de la scène, aucun redémarrage : la transition est instantanée.
 
+**Résultat attendu :**
+
+<img alt="Résultat attendu - Bonus 8 : une fenêtre avec un ToggleButton qui bascule le thème clair / sombre" src=".github/assets/apercu-bonus8-theme.png" width="480"/>
+
 **Lien SAÉ** : l'objectif qualité **O2** (Facilité d'apprentissage / accessibilité) du brief mentionne explicitement que des utilisatrices souffrant de déficiences visuelles légères doivent pouvoir utiliser l'application confortablement. Un mode sombre à contraste élevé est l'une des réponses standard à cette exigence.
 
 ### Bonus 9 - Reconstruire la coquille avec SceneBuilder (formatif)
 
 **Objectif** : prendre en main [**SceneBuilder**](https://gluonhq.com/products/scene-builder/), l'éditeur graphique de référence pour FXML. Vous reprenez la coquille de l'exercice 4, mais cette fois en **glissant-déposant** les composants depuis la palette SceneBuilder plutôt qu'en éditant le XML à la main.
 
+**Résultat attendu** (la coquille de l'ex4, reconstruite à SceneBuilder) **:**
+
+<img alt="Résultat attendu - Bonus 9 : la coquille reconstruite avec SceneBuilder" src=".github/assets/apercu-bonus9-scenebuilder.png" width="640"/>
+
 Ce bonus est **purement formatif** : il n'y a pas de test associé, parce que la production attendue (un FXML reconstruit visuellement) ne se vérifie pas automatiquement. C'est l'expérience d'utiliser l'outil qui compte : pour la SAÉ, SceneBuilder vous fera gagner un temps considérable sur les écrans complexes.
 
 ### Bonus 10 - Othello (pierre angulaire MVC, test blanc d'entraînement au CC3)
 
 **Objectif** : refaire une pierre angulaire MVC, cette fois sur un cas **ludique** (un plateau d'Othello 8x8 jouable à deux joueurs), en complément de la pierre angulaire métier de l'exercice 7. Une fois terminé, votre application permettra de jouer une partie complète : capture des pions adverses encadrés dans les 8 directions, passage de tour automatique quand un joueur n'a pas de coup légal, détection de fin de partie, affichage du vainqueur.
+
+**Résultat attendu :**
+
+<img alt="Résultat attendu - Bonus 10 : un plateau d'Othello 8x8 jouable, avec coups légaux mis en évidence et score" src=".github/assets/apercu-bonus10-othello.png" width="460"/>
 
 > [!IMPORTANT]
 > **Mode entraînement examen.** Ce bonus est conçu comme un **test blanc** pour préparer le **CC3** (mini-application JavaFX à écrire sur feuille). La consigne ci-dessous reprend la structure des sujets d'examen : 5 exercices successifs, chacun décomposé en questions numérotées très précises.
